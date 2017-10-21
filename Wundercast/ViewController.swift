@@ -94,13 +94,6 @@ class ViewController: UIViewController {
     let search = Observable.from([ geoSearch, textSearch, mapSearch ])
         .merge()
         .asDriver(onErrorJustReturn: ApiController.Weather.dummy)
-    mapButton.rx.tap 
-      .subscribe(onNext: {
-          self.mapView.isHidden = !self.mapView.isHidden
-        })
-      .disposed(by: bag)
-
-
 
     let running = Observable.from([
       searchInput.map { _ in true },
@@ -154,10 +147,35 @@ class ViewController: UIViewController {
       .drive(mapView.rx.overlays)
       .disposed(by: bag)
 
+    locationManager.rx.didUpdateLocations
+      .subscribe(onNext: { locations in
+          print(locations)
+        })   
+      .disposed(by: bag) 
+
+    mapButton.rx.tap 
+      .subscribe(onNext: {
+          self.mapView.isHidden = !self.mapView.isHidden
+        })
+      .disposed(by: bag)  
+
     mapView.rx.setDelegate(self)
       .disposed(by: bag)
 
+    textSearch.asDriver(onErrorJustReturn: ApiController.Weather.dummy)
+      .map { $0.coordinate }
+      .drive(mapView.rx.location)
+      .disposed(by: bag)
 
+    mapInput.flatMap { coordinate in
+      return ApiController.shared.currentWeatherAround(lat: coordinate.latitude, lon: coordinate.longitude)
+        .catchErrorJustReturn([])
+    }    
+    .asDriver(onErrorJustReturn:[])
+    .map { $0.map { $0.overlay() } }
+    .drive(mapView.rx.overlays)
+    .disposed(by: bag)
+    
   }
 
   override func viewDidAppear(_ animated: Bool) {
